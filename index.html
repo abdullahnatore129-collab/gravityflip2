@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>গ্র্যাভিটি ফ্লিপ</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0d0b24">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0d0b24;--ink:#fff3dc;--dim:#a8a2c8;--gold:#ffd25a;--coral:#ff5a78;--mint:#5ef2d0;--glass:rgba(255,255,255,.08);--line:rgba(255,255,255,.14);box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);font-family:'Hind Siliguri',system-ui,sans-serif;overflow:hidden;touch-action:none;-webkit-user-select:none;user-select:none}
+canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
+.glass{background:var(--glass);border:1px solid var(--line);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-radius:16px}
+#hud{position:fixed;top:calc(env(safe-area-inset-top,0px) + 10px);left:12px;right:12px;display:flex;gap:10px;pointer-events:none;align-items:flex-start}
+#hud .a{flex:1;padding:8px 14px}
+small{display:block;font-size:12px;color:var(--dim);line-height:1.2}
+#sc{font-size:34px;font-weight:700;line-height:1.05}
+#cn{padding:8px 14px;font-size:20px;font-weight:700;color:var(--gold)}
+#mute{pointer-events:auto;font-size:18px;padding:10px 12px;color:var(--ink);cursor:pointer}
+#banner{position:fixed;left:0;right:0;top:30%;text-align:center;font-size:44px;font-weight:700;color:var(--mint);opacity:0;pointer-events:none;transform:scale(.8)}
+#banner.on{animation:pop 1.1s ease-out}
+@keyframes pop{0%{opacity:0;transform:scale(.7)}20%{opacity:1;transform:scale(1.05)}70%{opacity:1}100%{opacity:0;transform:scale(1)}}
+.panel{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;background:radial-gradient(circle at 50% 45%,rgba(13,11,36,.5),rgba(13,11,36,.92))}
+.panel.hide{display:none}
+h1{font-size:56px;margin:0;font-weight:700;line-height:1.15;background:linear-gradient(180deg,#fff3dc,var(--mint));-webkit-background-clip:text;background-clip:text;color:transparent}
+p{max-width:300px;line-height:1.55;margin:8px 0;color:var(--dim);font-size:16px}
+.cta{margin-top:22px;font-weight:700;font-size:21px;color:#10261f;background:linear-gradient(180deg,#9ffbe6,var(--mint));border-radius:40px;padding:12px 40px;box-shadow:0 8px 30px rgba(94,242,208,.3);animation:pulse 1.4s ease-in-out infinite}
+@keyframes pulse{50%{transform:scale(1.05)}}
+#final{font-size:64px;font-weight:700;line-height:1.1}
+#note{color:var(--gold);font-weight:600;min-height:26px}
+.stats{display:flex;gap:10px;margin-top:14px}
+.stats div{padding:8px 18px;min-width:96px}
+.stats b{font-size:20px;display:block}
+@media (prefers-reduced-motion:reduce){.cta{animation:none}}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud">
+  <div class="glass a"><div id="sc">০</div><small id="bs">সেরা ০</small></div>
+  <div class="glass" id="cn">● ০</div>
+  <button class="glass" id="mute" aria-label="শব্দ">🔊</button>
+</div>
+<div id="banner"></div>
+
+<div class="panel" id="start">
+  <h1>গ্র্যাভিটি<br>ফ্লিপ</h1>
+  <p>স্ক্রিনে ট্যাপ করুন, মাধ্যাকর্ষণ উল্টে যাবে। কাঁটা আর থাম এড়িয়ে ছুটুন, সোনালি বিন্দু কুড়ান।</p>
+  <p>কম্পিউটারে Space বা ↑ চাপুন।</p>
+  <div class="cta">ট্যাপ করে শুরু</div>
+</div>
+
+<div class="panel hide" id="over">
+  <p>ধাক্কা লেগেছে</p>
+  <div id="final">০</div>
+  <div id="note"></div>
+  <div class="stats"><div class="glass"><small>দূরত্ব</small><b id="s1">০</b></div><div class="glass"><small>বিন্দু</small><b id="s2">০</b></div></div>
+  <div class="cta">ট্যাপ করে আবার</div>
+</div>
+
+<script>
+const cv=document.getElementById('c'),cx=cv.getContext('2d'),$=i=>document.getElementById(i);
+const bn=n=>Math.round(n).toLocaleString('bn-BD');
+let W,H,dpr,ch,u,floorY,ceilY,bx,r,glow;
+function fit(){dpr=Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight;cv.width=W*dpr;cv.height=H*dpr;cx.setTransform(dpr,0,0,dpr,0,0);
+  ch=Math.min(H*.62,460);u=ch/10;floorY=H/2+ch/2;ceilY=H/2-ch/2;bx=W*.22;r=Math.max(10,ch*.04);
+  glow=document.createElement('canvas');glow.width=glow.height=96;const g=glow.getContext('2d'),q=g.createRadialGradient(48,48,4,48,48,48);q.addColorStop(0,'rgba(255,225,150,.9)');q.addColorStop(.4,'rgba(255,190,90,.3)');q.addColorStop(1,'rgba(255,190,90,0)');g.fillStyle=q;g.fillRect(0,0,96,96)}
+addEventListener('resize',fit);fit();
+
+let AC=null,muted=false;
+function snd(f,d=.08,ty='sine',v=.06){if(muted||!AC)return;try{const o=AC.createOscillator(),g=AC.createGain();o.type=ty;o.frequency.value=f;g.gain.setValueAtTime(v,AC.currentTime);g.gain.exponentialRampToValueAtTime(.0001,AC.currentTime+d);o.connect(g);g.connect(AC.destination);o.start();o.stop(AC.currentTime+d)}catch(e){}}
+const vib=n=>{try{navigator.vibrate&&navigator.vibrate(n)}catch(e){}};
+$('mute').addEventListener('pointerdown',e=>{e.stopPropagation();muted=!muted;$('mute').textContent=muted?'🔇':'🔊'});
+
+let bestS=0,bestM=0;try{bestS=+localStorage.getItem('gf_s')||0;bestM=+localStorage.getItem('gf_m')||0}catch(e){}
+$('bs').textContent='সেরা '+bn(bestS);
+const dots=Array.from({length:45},()=>({x:Math.random(),y:Math.random(),z:Math.random()*.7+.2}));
+let st='menu',D=0,obs=[],coins=[],parts=[],trail=[],lastX=0,B,coinN=0,gt=0,shake=0,deadAt=0,lastMile=0,t=0,score=0;
+const speed=()=>ch*(.6+Math.min(.7,D/u/1800));
+
+function reset(){D=0;obs=[];coins=[];parts=[];trail=[];coinN=0;gt=0;shake=0;lastMile=0;score=0;lastX=W*1.05;B={y:floorY-r,vy:0,dir:1,sq:0,rot:0};while(lastX<W+300)spawn();ui()}
+function spawn(){
+  const m=D/u,v=speed(),gapPx=v*(Math.max(.55,.95-m/2500)+Math.random()*.5),x=lastX+gapPx,side=Math.random()<.5?0:1,sp=Math.random()<.5;
+  const n=sp?1+(Math.random()*(m>300?3:2)|0):1,w=sp?n*ch*.085:ch*.1,h=sp?ch*.1:ch*.34;
+  obs.push({x,w,h,side,sp});lastX=x+w;
+  if(Math.random()<.75){const k=3+(Math.random()*3|0),pat=Math.random()<.5,sy=side?floorY-r-8:ceilY+r+8,ey=side?ceilY+r+8:floorY-r-8;
+    for(let i=0;i<k;i++){const f=i/(k-1);coins.push({x:x-gapPx*(.85-.65*f),y:pat?sy:sy+(ey-sy)*f*.9})}}}
+function burst(x,y,c,n,s=70){for(let i=0;i<n&&parts.length<200;i++){const a=Math.random()*6.283,v=20+Math.random()*s;parts.push({x,y,vx:Math.cos(a)*v,vy:Math.sin(a)*v,l:1,c})}}
+function flip(){if(st!=='play')return;B.dir*=-1;B.vy=B.dir*ch*.6;B.sq=-1;snd(B.dir>0?330:440,.07,'triangle',.07);vib(8);burst(bx,B.y,'#fff3dc',6,40)}
+function begin(){if(!AC){try{AC=new(window.AudioContext||window.webkitAudioContext)()}catch(e){}}
+  $('start').classList.add('hide');$('over').classList.add('hide');reset();st='play'}
+function die(){
+  st='dead';deadAt=performance.now();shake=20;vib([60,40,110]);snd(120,.5,'sawtooth',.1);burst(bx,B.y,'#ff5a78',40,160);burst(bx,B.y,'#fff3dc',20,120);
+  const m=Math.floor(D/u);let n='সেরা '+bn(bestS);
+  if(score>bestS){bestS=score;bestM=m;n='🏆 নতুন রেকর্ড!';try{localStorage.setItem('gf_s',bestS);localStorage.setItem('gf_m',bestM)}catch(e){}}
+  else if(bestS-score<=bestS*.15)n='প্রায় পৌঁছে গিয়েছিলেন! সেরা '+bn(bestS);
+  $('bs').textContent='সেরা '+bn(bestS);$('final').textContent=bn(score);$('note').textContent=n;$('s1').textContent=bn(m)+' মি';$('s2').textContent=bn(coinN);
+  setTimeout(()=>{if(st==='dead')$('over').classList.remove('hide')},650)}
+function ui(){$('sc').textContent=bn(score);$('cn').textContent='● '+bn(coinN)}
+
+function hit(o){
+  const y0=o.side?ceilY:floorY-o.h,x0=o.x,w=o.w,h=o.h;
+  let rx=x0+(o.sp?w*.12:2),rw=o.sp?w*.76:w-4,ry=o.side?ceilY:floorY-(o.sp?h*.75:h),rh=o.sp?h*.75:h;
+  const cxp=Math.max(rx,Math.min(bx,rx+rw)),cyp=Math.max(ry,Math.min(B.y,ry+rh)),dx=bx-cxp,dy=B.y-cyp;
+  return dx*dx+dy*dy<(r*.88)*(r*.88)}
+
+function update(dt){
+  gt+=dt;const v=speed(),g=ch*14;D+=v*dt;lastX-=v*dt;
+  for(const o of obs)o.x-=v*dt;for(const c of coins)c.x-=v*dt;
+  while(lastX<W+300)spawn();
+  B.vy+=g*B.dir*dt;B.y+=B.vy*dt;B.rot+=v*dt/r;
+  if(B.dir===1&&B.y>floorY-r){if(B.vy>ch*1.5)land(floorY);B.y=floorY-r;B.vy=0}
+  if(B.dir===-1&&B.y<ceilY+r){if(-B.vy>ch*1.5)land(ceilY);B.y=ceilY+r;B.vy=0}
+  trail.push({x:bx,y:B.y});for(const p of trail)p.x-=v*dt;if(trail.length>18)trail.shift();
+  for(let i=obs.length-1;i>=0;i--){const o=obs[i];if(o.x+o.w<-60){obs.splice(i,1);continue}if(o.x<bx+r+10&&o.x+o.w>bx-r-10&&hit(o)){die();return}}
+  for(let i=coins.length-1;i>=0;i--){const c=coins[i];if(c.x<-40){coins.splice(i,1);continue}
+    const dx=c.x-bx,dy=c.y-B.y;if(dx*dx+dy*dy<(r+9)*(r+9)){coins.splice(i,1);coinN++;burst(c.x,c.y,'#ffd25a',8,60);snd(700+Math.min(coinN%12,11)*60,.09,'sine',.06);vib(5)}}
+  score=Math.floor(D/u)+coinN*10;
+  const mile=Math.floor(D/u/500);if(mile>lastMile){lastMile=mile;const b=$('banner');b.textContent=bn(mile*500)+' মিটার!';b.classList.remove('on');void b.offsetWidth;b.classList.add('on');snd(523,.15,'triangle',.08);setTimeout(()=>snd(784,.2,'triangle',.08),120);vib(30)}
+  ui()}
+function land(y){B.sq=1;shake=Math.max(shake,3);burst(bx,y,'rgba(255,243,220,.8)',5,50);snd(160,.05,'sine',.05)}
+function tick(dt){
+  for(let i=parts.length-1;i>=0;i--){const p=parts[i];p.x+=p.vx*dt;p.y+=p.vy*dt;p.l-=dt*1.8;if(p.l<=0)parts.splice(i,1)}
+  shake=Math.max(0,shake-dt*40);B.sq*=.85}
+
+function draw(){
+  const m=D/u,h=(250+m*.06)%360,gr=cx.createLinearGradient(0,0,0,H);gr.addColorStop(0,'hsl('+h+',55%,8%)');gr.addColorStop(1,'hsl('+(h+45)%360+',60%,17%)');cx.fillStyle=gr;cx.fillRect(0,0,W,H);
+  for(const s of dots){const x=((s.x*W-D*s.z*.1)%W+W)%W;cx.fillStyle='rgba(255,243,220,'+(.1+s.z*.4)+')';cx.fillRect(x,s.y*H,s.z*2.2,s.z*2.2)}
+  const sx=shake?(Math.random()-.5)*shake:0,sy=shake?(Math.random()-.5)*shake:0;
+  cx.save();cx.translate(sx,sy);
+  const mint='hsl('+(h+150)%360+',85%,68%)';
+  cx.fillStyle='rgba(0,0,0,.35)';cx.fillRect(-20,-20,W+40,ceilY+20);cx.fillRect(-20,floorY,W+40,H-floorY+20);
+  cx.strokeStyle=mint;cx.lineWidth=3;cx.beginPath();cx.moveTo(0,ceilY);cx.lineTo(W,ceilY);cx.moveTo(0,floorY);cx.lineTo(W,floorY);cx.stroke();
+  cx.lineWidth=2;cx.globalAlpha=.35;const off=D%60;cx.beginPath();for(let x=-off;x<W;x+=60){cx.moveTo(x,ceilY-8);cx.lineTo(x+14,ceilY-8);cx.moveTo(x,floorY+8);cx.lineTo(x+14,floorY+8)}cx.stroke();cx.globalAlpha=1;
+  if(st==='play'&&bestM>0){const fx=bx+bestM*u-D;if(fx>0&&fx<W){cx.setLineDash([6,8]);cx.strokeStyle='#ffd25a';cx.lineWidth=2;cx.beginPath();cx.moveTo(fx,ceilY);cx.lineTo(fx,floorY);cx.stroke();cx.setLineDash([]);cx.fillStyle='#ffd25a';cx.font='700 14px "Hind Siliguri",sans-serif';cx.textAlign='center';cx.fillText('সেরা',fx,ceilY-16)}}
+  for(const o of obs){cx.fillStyle='#ff5a78';cx.beginPath();
+    if(o.sp){const n=Math.round(o.w/(ch*.085)),sw=o.w/n;for(let i=0;i<n;i++){const a=o.x+i*sw;if(o.side){cx.moveTo(a,ceilY);cx.lineTo(a+sw,ceilY);cx.lineTo(a+sw/2,ceilY+o.h)}else{cx.moveTo(a,floorY);cx.lineTo(a+sw,floorY);cx.lineTo(a+sw/2,floorY-o.h)}}cx.fill()}
+    else{const y=o.side?ceilY:floorY-o.h;cx.roundRect?cx.roundRect(o.x,y,o.w,o.h,6):cx.rect(o.x,y,o.w,o.h);cx.fill();cx.fillStyle='rgba(255,255,255,.28)';cx.fillRect(o.x+3,y+(o.side?0:3),4,o.h-3)}}
+  for(const c of coins){const p=1+.12*Math.sin(t*6+c.x*.05);cx.fillStyle='#ffd25a';cx.beginPath();cx.arc(c.x,c.y,6*p,0,6.283);cx.fill();cx.strokeStyle='rgba(255,210,90,.4)';cx.lineWidth=2;cx.beginPath();cx.arc(c.x,c.y,10*p,0,6.283);cx.stroke()}
+  for(const p of parts){cx.globalAlpha=Math.max(0,p.l);cx.fillStyle=p.c;cx.fillRect(p.x,p.y,3,3)}cx.globalAlpha=1;
+  if(st!=='dead'){
+    for(let i=0;i<trail.length;i++){const p=trail[i],f=i/trail.length;cx.fillStyle='rgba(255,225,150,'+f*.25+')';cx.beginPath();cx.arc(p.x,p.y,r*f*.9,0,6.283);cx.fill()}
+    const s=1+Math.min(.4,Math.abs(B.vy)/(ch*5))+Math.abs(B.sq)*.25*(B.sq<0?1:-1.2);
+    cx.save();cx.translate(bx,B.y);cx.drawImage(glow,-r*3,-r*3,r*6,r*6);cx.scale(1/s,s);
+    cx.fillStyle='#fff3dc';cx.beginPath();cx.arc(0,0,r,0,6.283);cx.fill();cx.restore()}
+  cx.restore()}
+
+let last=0;
+function loop(ts){const dt=Math.min(.035,(ts-last)/1000||0);last=ts;t+=dt;if(st==='play')update(dt);tick(dt);draw();requestAnimationFrame(loop)}
+function act(){if(st==='play')flip();else if(st==='menu')begin();else if(st==='dead'&&performance.now()-deadAt>750)begin()}
+addEventListener('pointerdown',act);
+addEventListener('keydown',e=>{if(['Space','ArrowUp','Enter','KeyW'].includes(e.code)){e.preventDefault();if(!e.repeat)act()}});
+addEventListener('touchmove',e=>e.preventDefault(),{passive:false});
+reset();requestAnimationFrame(loop);
+</script>
+<script>if('serviceWorker' in navigator){addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){})})}</script>
+</body>
+</html>
